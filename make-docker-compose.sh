@@ -17,7 +17,9 @@ services:
       - PYTHONUNBUFFERED=1
       - LOGGING_LEVEL=DEBUG
     networks:
-      - testing_net"> temp.yaml
+      - testing_net
+    volumes:
+      - ./server/config.ini:/config.ini"> temp.yaml
 
 for (( i = 1; i <= $1; i++ )) 
 do
@@ -32,7 +34,9 @@ echo "
     networks:
       - testing_net
     depends_on:
-      - server" >> temp.yaml
+      - server
+    volumes:
+      - ./client/config.yaml:/config.yaml" >> temp.yaml
 done
 
 echo "
