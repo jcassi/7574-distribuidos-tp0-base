@@ -45,9 +45,10 @@ class Server:
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
+            logging.info('action: close_client_socket | result: in_progress')
             client_sock.shutdown(socket.SHUT_RDWR)
             client_sock.close()
-            logging.info("Closed client socket")
+            logging.info('action: close_client_socket | result: success')
 
     def __accept_new_connection(self):
         """
@@ -67,7 +68,8 @@ class Server:
         return c
 
     def __graceful_shutdown(self, signum, frame):
+        logging.info("action: signal_handling | result: in_progress")
         self._server_socket.shutdown(socket.SHUT_RDWR)
         self._server_socket.close()
         self._stop = True
-        logging.info("Signal received, closed server socket")
+        logging.info("action: signal_handling | result: success")

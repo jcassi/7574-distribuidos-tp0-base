@@ -101,7 +101,7 @@ loop:
 		select {
 		case <-nextIteration:
 		case <-sigchnl:
-			log.Info("Signal received, exiting loop")
+			log.Infof("action: signal_handling | result: success | client_id: %v", c.config.ID)
 			break loop
 		}
 	}
