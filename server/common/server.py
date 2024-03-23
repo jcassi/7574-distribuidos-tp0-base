@@ -9,6 +9,7 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        self._stop = False
         signal.signal(signal.SIGINT, self.__graceful_shutdown)
         signal.signal(signal.SIGTERM, self.__graceful_shutdown)
 
@@ -37,6 +38,8 @@ class Server:
         client socket will also be closed
         """
         try:
+            if self._stop:
+                return
             # TODO: Modify the receive to avoid short-reads
             msg = client_sock.recv(1024).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
@@ -46,7 +49,9 @@ class Server:
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
+            client_sock.shutdown(socket.SHUT_RDWR)
             client_sock.close()
+            logging.info("Closed client socket")
 
     def __accept_new_connection(self):
         """
@@ -60,11 +65,13 @@ class Server:
         logging.info('action: accept_connections | result: in_progress')
         try:
             c, addr = self._server_socket.accept()
-        except Exception as e: #TODO only catch Errno 9?
+        except OSError:
             return None
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         return c
 
     def __graceful_shutdown(self, signum, frame):
+        self._server_socket.shutdown(socket.SHUT_RDWR)
         self._server_socket.close()
+        self._stop = True
         logging.info("Signal received, closed server socket")
