@@ -1,5 +1,6 @@
 import socket
 import logging
+import signal
 
 
 class Server:
@@ -8,6 +9,8 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        signal.signal(signal.SIGINT, self.__graceful_shutdown)
+        signal.signal(signal.SIGTERM, self.__graceful_shutdown)
 
     def run(self):
         """
@@ -22,6 +25,8 @@ class Server:
         # the server
         while True:
             client_sock = self.__accept_new_connection()
+            if client_sock is None:
+                break
             self.__handle_client_connection(client_sock)
 
     def __handle_client_connection(self, client_sock):
@@ -53,6 +58,13 @@ class Server:
 
         # Connection arrived
         logging.info('action: accept_connections | result: in_progress')
-        c, addr = self._server_socket.accept()
+        try:
+            c, addr = self._server_socket.accept()
+        except Exception as e: #TODO only catch Errno 9?
+            return None
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         return c
+
+    def __graceful_shutdown(self, signum, frame):
+        self._server_socket.close()
+        logging.info("Signal received, closed server socket")
