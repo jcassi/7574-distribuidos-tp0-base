@@ -22,9 +22,7 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        # TODO: Modify this program to handle signal to graceful shutdown
-        # the server
-        while True:
+        while not self._stop:
             client_sock = self.__accept_new_connection()
             if client_sock is None:
                 break
@@ -38,8 +36,6 @@ class Server:
         client socket will also be closed
         """
         try:
-            if self._stop:
-                return
             # TODO: Modify the receive to avoid short-reads
             msg = client_sock.recv(1024).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
