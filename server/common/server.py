@@ -39,9 +39,10 @@ class Server:
         """
         try:
             bet = ReceiveBet(client_sock)
-            store_bets([bet])
-            logging.info(f'action: apuesta_almacenada | result: success | dni: ${bet.document} | numero: ${bet.number}')
-            RespondBet(bet, client_sock)
+            if bet is not None:
+                store_bets([bet])
+                logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
+                RespondBet(bet, client_sock)
             client_sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")

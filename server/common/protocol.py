@@ -13,12 +13,16 @@ def ReceiveBet(client_sock):
             size = bytes_read[0] << 8 | bytes_read[1]
             read += data_length
 
-    msg = bytes(bytes_read[2:]).decode("utf-8")
+    if (size < 4): #Can't be less than 2 bytes of length, 1 of client_id and at least 1 of payload
+        logging.info(f'action: apuesta_almacenada | result: fail | ip: {addr[0]} | msg: {msg}')
+        return None
+    client_id = int(bytes_read[2])
+    msg = bytes(bytes_read[3:]).decode("utf-8")
     addr = client_sock.getpeername()
     logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
     fields = msg.split(',')
 
-    return Bet(fields[0], fields[1], fields[2], fields[3], fields[4], fields[5])
+    return Bet(client_id, fields[0], fields[1], fields[2], fields[3], fields[4])
 
 def RespondBet(bet, client_sock):
     response_payload = "{}".format(bet.number).encode('utf-8')

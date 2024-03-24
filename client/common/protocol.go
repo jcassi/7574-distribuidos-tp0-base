@@ -3,6 +3,7 @@ package common
 import (
 	"fmt"
 	"net"
+	"strconv"
 )
 
 // Sends the bet in a serialized format over the connection received as paramater
@@ -45,7 +46,9 @@ func ReceiveAck(conn net.Conn) error {
 func SerializeBet(bet Bet) []byte {
 	betBytes := BetToBytes(bet)
 	var len uint16 = uint16(len(betBytes))
-	return append(uint16ToBytes(len), betBytes...)
+	id, _ := strconv.Atoi(bet.agency) //TODO ver error
+	aux := append(uint16ToBytes(len), uint8(id))
+	return append(aux, betBytes...)
 }
 
 func uint16ToBytes(n uint16) []byte {
@@ -55,6 +58,6 @@ func uint16ToBytes(n uint16) []byte {
 
 // Returns a slice of bytes with the bet fields separated by commas
 func BetToBytes(bet Bet) []byte {
-	str := fmt.Sprintf("%s,%s,%s,%s,%s,%s", bet.agency, bet.firstName, bet.lastName, bet.document, bet.birthDate, bet.number)
+	str := fmt.Sprintf("%s,%s,%s,%s,%s", bet.firstName, bet.lastName, bet.document, bet.birthDate, bet.number)
 	return []byte(str)
 }
