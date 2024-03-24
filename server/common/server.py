@@ -38,20 +38,20 @@ class Server:
         client socket will also be closed
         """
         try:
+            addr = client_sock.getpeername()[0]
             bets = receive_bets(client_sock)
             if bets is not None:
                 store_bets(bets)
-                logging.info(f'action: apuesta_almacenada | result: success | ip {client_sock.getpeername()} | client {bets[0].agency}')
+                logging.info(f'action: apuesta_almacenada | result: success | ip {addr}')
                 respond_bets(client_sock, bets[0].agency)
                         
-
             client_sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
-            logging.info('action: close_client_socket | result: in_progress')
+            logging.info(f'action: close_client_socket | result: in_progress | ip {addr}')
             client_sock.close()
-            logging.info('action: close_client_socket | result: success')
+            logging.info(f'action: close_client_socket | result: success | ip {addr}')
 
     def __accept_new_connection(self):
         """
