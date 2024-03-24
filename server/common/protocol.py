@@ -18,7 +18,7 @@ def ReceiveBet(client_sock):
     logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
     fields = msg.split(',')
 
-    return Bet("1", fields[0], fields[1], fields[2], fields[3], fields[4])
+    return Bet(fields[0], fields[1], fields[2], fields[3], fields[4], fields[5])
 
 def RespondBet(bet, client_sock):
     response_payload = "{}".format(bet.number).encode('utf-8')

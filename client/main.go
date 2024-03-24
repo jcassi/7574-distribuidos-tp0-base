@@ -117,7 +117,7 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	bet := common.NewBet(v.GetString("bet.nombre"), v.GetString("bet.apellido"), v.GetString("bet.documento"),
+	bet := common.NewBet(clientConfig.ID, v.GetString("bet.nombre"), v.GetString("bet.apellido"), v.GetString("bet.documento"),
 		v.GetString("bet.nacimiento"), v.GetString("bet.numero"))
 
 	client := common.NewClient(clientConfig)

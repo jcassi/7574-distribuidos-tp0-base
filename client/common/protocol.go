@@ -55,6 +55,6 @@ func uint16ToBytes(n uint16) []byte {
 
 // Returns a slice of bytes with the bet fields separated by commas
 func BetToBytes(bet Bet) []byte {
-	str := fmt.Sprintf("%s,%s,%s,%s,%s", bet.firstName, bet.lastName, bet.document, bet.birthDate, bet.number)
+	str := fmt.Sprintf("%s,%s,%s,%s,%s,%s", bet.agency, bet.firstName, bet.lastName, bet.document, bet.birthDate, bet.number)
 	return []byte(str)
 }
