@@ -40,6 +40,7 @@ func InitConfig() (*viper.Viper, error) {
 	v.BindEnv("bet", "documento")
 	v.BindEnv("bet", "nacimiento")
 	v.BindEnv("bet", "numero")
+	v.BindEnv("batch", "betsByBatch")
 
 	// Try to read configuration from config file. If config file
 	// does not exists then ReadInConfig will fail but configuration
@@ -83,7 +84,7 @@ func InitLogger(logLevel string) error {
 // PrintConfig Print all the configuration parameters of the program.
 // For debugging purposes only
 func PrintConfig(v *viper.Viper) {
-	logrus.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_lapse: %v | loop_period: %v | log_level: %s | name: %s | lastname: %s | dni: %s | dateOfBirth: %s | number: %s",
+	logrus.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_lapse: %v | loop_period: %v | log_level: %s | name: %s | lastname: %s | dni: %s | dateOfBirth: %s | number: %s | betsByBatch: %v",
 		v.GetString("id"),
 		v.GetString("server.address"),
 		v.GetDuration("loop.lapse"),
@@ -94,6 +95,7 @@ func PrintConfig(v *viper.Viper) {
 		v.GetString("bet.documento"),
 		v.GetString("bet.nacimiento"),
 		v.GetString("bet.numero"),
+		v.GetUint("batch.betsByBatch"),
 	)
 }
 
@@ -117,9 +119,6 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	bet := common.NewBet(clientConfig.ID, v.GetString("bet.nombre"), v.GetString("bet.apellido"), v.GetString("bet.documento"),
-		v.GetString("bet.nacimiento"), v.GetString("bet.numero"))
-
 	client := common.NewClient(clientConfig)
-	client.SendBet(*bet)
+	client.SendBets(fmt.Sprintf("agency-%s.csv", clientConfig.ID), v.GetUint("batch.betsByBatch"))
 }

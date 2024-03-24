@@ -12,3 +12,5 @@ bet:
   documento: "30904465"
   nacimiento: "1999-03-17"
   numero: "7574"
+batch:
+  betsByBatch: 4

@@ -2,7 +2,7 @@ import socket
 import logging
 import signal
 from common.utils import Bet, store_bets
-from common.protocol import ReceiveBet, RespondBet
+from common.protocol import ReceiveBet, receive_bets, RespondBet, respond_bets
 
 
 class Server:
@@ -38,11 +38,13 @@ class Server:
         client socket will also be closed
         """
         try:
-            bet = ReceiveBet(client_sock)
-            if bet is not None:
-                store_bets([bet])
-                logging.info(f'action: apuesta_almacenada | result: success | dni: {bet.document} | numero: {bet.number}')
-                RespondBet(bet, client_sock)
+            bets = receive_bets(client_sock)
+            if bets is not None:
+                store_bets(bets)
+                logging.info(f'action: apuesta_almacenada | result: success | ip {client_sock.getpeername()} | client {bets[0].agency}')
+                respond_bets(client_sock, bets[0].agency)
+                        
+
             client_sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")

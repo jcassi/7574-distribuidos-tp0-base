@@ -3,9 +3,11 @@ package common
 import (
 	"bufio"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
 
@@ -132,4 +134,66 @@ func (c *Client) SendBet(bet Bet) {
 	c.conn.Close()
 
 	log.Infof("action: apuesta_enviada | result: success | dni: %s | numero: %s", bet.document, bet.number)
+}
+
+// Reads the bets from the filename received as parameters, sends them in batches and receives its ACKs
+func (c *Client) SendBets(filename string, betsByBatch uint) {
+	file, err := os.Open(filename)
+	if err != nil {
+		log.Fatal(err)
+	}
+	reader := bufio.NewReader(file)
+	isEOF := false
+	for !isEOF {
+		var bets []Bet
+		log.Info("action: leer_batch_archivo | result: in_progress")
+		isEOF, bets, err = c.ReadBatchFromFile(reader, betsByBatch)
+		if err != nil {
+			log.Errorf("action: leer_batch_archivo | result: fail")
+		}
+		log.Info("action: leer_batch_archivo | result: success")
+
+		c.createClientSocket()
+		log.Info("action: enviar_batch | result: in_progress")
+		err := SendBets(bets, c.conn, c.config.ID)
+		if err != nil {
+			log.Error("action: enviar_batch | result: fail")
+			c.conn.Close()
+		}
+		log.Info("action: enviar_batch | result: success")
+		bets = nil
+
+		log.Info("action: recibir_ack_batch | result: in_progress")
+		err = ReceiveAckBets(c.conn, c.config.ID)
+		if err != nil {
+			log.Error("action: recibir_ack_batch | result: fail")
+			c.conn.Close()
+			return
+		}
+		log.Info("action: recibir_ack_batch | result: success")
+
+		c.conn.Close()
+	}
+}
+
+// Read the amount of lines specified in the environment, creates a bet for each line and returns them.
+// Returns whether it has reached EOF, the bets and error
+func (c *Client) ReadBatchFromFile(reader *bufio.Reader, betsByBatch uint) (bool, []Bet, error) {
+	isEOF := false
+	var bets []Bet
+
+	var i uint
+	for i = 0; i < betsByBatch; i++ {
+		line, err := reader.ReadString('\n')
+		if err == io.EOF {
+			isEOF = true
+			break
+		}
+		if err != nil {
+			return false, nil, err
+		}
+		fields := strings.Split(strings.TrimSpace(line), ",")
+		bets = append(bets, *NewBet(c.config.ID, fields[1], fields[0], fields[2], fields[3], fields[4]))
+	}
+	return isEOF, bets, nil
 }

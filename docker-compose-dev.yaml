@@ -26,20 +26,7 @@ services:
       - server
     volumes:
       - ./client/config.yaml:/config.yaml
-
-  client2:
-    container_name: client2
-    image: client:latest
-    entrypoint: /client
-    environment:
-      - CLI_ID=2
-      - CLI_LOG_LEVEL=DEBUG
-    networks:
-      - testing_net
-    depends_on:
-      - server
-    volumes:
-      - ./client/config.yaml:/config.yaml
+      - ./client/agency-1.csv:/agency-1.csv
 
 networks:
   testing_net:
