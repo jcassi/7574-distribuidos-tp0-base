@@ -108,3 +108,28 @@ loop:
 
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
+
+// Sends bet to the server and receives ACK
+func (c *Client) SendBet(bet Bet) {
+	c.createClientSocket()
+
+	err := SendBet(bet, c.conn)
+	if err != nil {
+		log.Errorf("action: apuesta_enviada | result: fail | dni: %s | numero: %s", bet.document, bet.number)
+		c.conn.Close()
+		return
+	}
+
+	log.Infof("action: apuesta_enviada | result: in_progress | dni: %s | numero: %s", bet.document, bet.number)
+
+	err = ReceiveAck(c.conn)
+	if err != nil {
+		log.Errorf("action: apuesta_enviada | result: fail | dni: %s | numero: %s", bet.document, bet.number)
+		c.conn.Close()
+		return
+	}
+
+	c.conn.Close()
+
+	log.Infof("action: apuesta_enviada | result: success | dni: %s | numero: %s", bet.document, bet.number)
+}
