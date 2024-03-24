@@ -67,7 +67,6 @@ def __read_batch_bytes(client_sock):
             chunk = client_sock.recv(1024)
             bytes_read += list(chunk)
             data_length = len(chunk)
-            exit(-1)
             if read == 0 and data_length >= 2:
                 size = bytes_read[0] << 8 | bytes_read[1]
                 read += data_length
