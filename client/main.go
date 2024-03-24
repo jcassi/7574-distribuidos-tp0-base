@@ -35,11 +35,6 @@ func InitConfig() (*viper.Viper, error) {
 	v.BindEnv("loop", "period")
 	v.BindEnv("loop", "lapse")
 	v.BindEnv("log", "level")
-	v.BindEnv("bet", "nombre")
-	v.BindEnv("bet", "apellido")
-	v.BindEnv("bet", "documento")
-	v.BindEnv("bet", "nacimiento")
-	v.BindEnv("bet", "numero")
 	v.BindEnv("batch", "betsByBatch")
 
 	// Try to read configuration from config file. If config file
@@ -84,17 +79,12 @@ func InitLogger(logLevel string) error {
 // PrintConfig Print all the configuration parameters of the program.
 // For debugging purposes only
 func PrintConfig(v *viper.Viper) {
-	logrus.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_lapse: %v | loop_period: %v | log_level: %s | name: %s | lastname: %s | dni: %s | dateOfBirth: %s | number: %s | betsByBatch: %v",
+	logrus.Infof("action: config | result: success | client_id: %s | server_address: %s | loop_lapse: %v | loop_period: %v | log_level: %s | betsByBatch: %v",
 		v.GetString("id"),
 		v.GetString("server.address"),
 		v.GetDuration("loop.lapse"),
 		v.GetDuration("loop.period"),
 		v.GetString("log.level"),
-		v.GetString("bet.nombre"),
-		v.GetString("bet.apellido"),
-		v.GetString("bet.documento"),
-		v.GetString("bet.nacimiento"),
-		v.GetString("bet.numero"),
 		v.GetUint("batch.betsByBatch"),
 	)
 }
