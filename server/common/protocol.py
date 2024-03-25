@@ -46,7 +46,7 @@ def receive_bets(client_sock):
         return None
     size = len(bytes_read) - PAYLOAD_LEN - CLIENT_ID_LEN
 
-    agency = str(int(bytes_read[2]))
+    agency = str(int(bytes_read[0]))
     addr = client_sock.getpeername()
 
     bets = []
@@ -68,10 +68,10 @@ def __read_batch_bytes(client_sock):
     """
     bytes_read = []
     read = 0
-    size = PAYLOAD_LEN
+    size = 0
     logging.info(f'action: receive_batch | result: in_progress | ip: {client_sock.getpeername()[0]}')
     try:
-        while read < size + PAYLOAD_LEN + CLIENT_ID_LEN:
+        while read < size + CLIENT_ID_LEN + PAYLOAD_LEN :
             client_sock.settimeout(0.5)
             try:
                 chunk = client_sock.recv(1024)
@@ -80,8 +80,8 @@ def __read_batch_bytes(client_sock):
                 return None
             bytes_read += list(chunk)
             data_length = len(chunk)
-            if read == 0 and data_length >= 2:
-                size = bytes_read[0] << 8 | bytes_read[1]
+            if read == 0 and data_length >= CLIENT_ID_LEN + PAYLOAD_LEN:
+                size = bytes_read[1] << 8 | bytes_read[2]
             read += data_length
     except OSError as e:
         logging.error(f'action: receive_batch | result: fail | ip: {client_sock.getpeername()[0]} | error: {e}')
@@ -94,9 +94,11 @@ def __deserialize_bet(agency, betsBytes):
     Read bytes belonging to one bet from a list of bytes and deserialize them into a bet.
     Return the next position to read from the list and the bet deserialized
     """
-    if len(betsBytes) < PAYLOAD_LEN + CLIENT_ID_LEN + 1:
+    if len(betsBytes) < PAYLOAD_LEN:
         return None
     size = betsBytes[0] << 8 | betsBytes[1]
+    if len(betsBytes) < PAYLOAD_LEN + size:
+        return None
     msg = bytes(betsBytes[PAYLOAD_LEN:PAYLOAD_LEN + size]).decode("utf-8")
     fields = msg.split(',')
     if len(fields) != 5:

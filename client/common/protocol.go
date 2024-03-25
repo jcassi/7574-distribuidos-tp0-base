@@ -38,7 +38,8 @@ func BatchToBytes(agency string, bets []Bet, betsByBatch uint) (int, []byte) {
 
 	var len uint16 = uint16(len(batchBytes))
 	id, _ := strconv.Atoi(agency)
-	aux := append(uint16ToBytes(len), uint8(id))
+	aux := []byte{uint8(id)}
+	aux = append(aux, uint16ToBytes(len)...)
 	batchBytes = append(aux, batchBytes...)
 	return n, batchBytes
 }
