@@ -82,7 +82,7 @@ def __read_batch_bytes(client_sock):
             data_length = len(chunk)
             if read == 0 and data_length >= 2:
                 size = bytes_read[0] << 8 | bytes_read[1]
-                read += data_length
+            read += data_length
     except OSError as e:
         logging.error(f'action: receive_batch | result: fail | ip: {client_sock.getpeername()[0]} | error: {e}')
         raise e

@@ -7,4 +7,4 @@ loop:
 log:
   level: "info"
 batch:
-  betsByBatch: 4
+  betsByBatch: 100

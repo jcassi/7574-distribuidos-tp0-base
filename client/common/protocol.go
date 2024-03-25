@@ -9,10 +9,10 @@ import (
 const MAX_PACKET_SIZE = 8192
 
 // Receives a slice of bets, serializes them and sends them to the server over the connection received as parameter
-func SendBets(bets []Bet, conn net.Conn, clientId string) error {
+func SendBets(bets []Bet, conn net.Conn, clientId string, betsByBatch uint) error {
 	i := 0
 	for i < len(bets) {
-		n, batchBytes := BatchToBytes(clientId, bets[i:])
+		n, batchBytes := BatchToBytes(clientId, bets[i:], betsByBatch)
 		i += n
 		err := SendToSocket(batchBytes, conn)
 		if err != nil {
@@ -23,11 +23,11 @@ func SendBets(bets []Bet, conn net.Conn, clientId string) error {
 }
 
 // Converts a slice of bets to the bytes according to the protocol
-func BatchToBytes(agency string, bets []Bet) (int, []byte) {
+func BatchToBytes(agency string, bets []Bet, betsByBatch uint) (int, []byte) {
 	var batchBytes []byte
 	n := 0
 	i := 0
-	for ; i < len(bets) && n < 4; i++ {
+	for ; i < len(bets) && n < int(betsByBatch); i++ {
 		bet := bets[i]
 		betBytes := SerializeBet(bet)
 		if len(batchBytes)+len(betBytes) < MAX_PACKET_SIZE {

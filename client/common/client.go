@@ -155,7 +155,7 @@ func (c *Client) SendBets(filename string, betsByBatch uint) {
 
 		c.createClientSocket()
 		log.Info("action: enviar_batch | result: in_progress")
-		err := SendBets(bets, c.conn, c.config.ID)
+		err := SendBets(bets, c.conn, c.config.ID, betsByBatch)
 		if err != nil {
 			log.Error("action: enviar_batch | result: fail")
 			c.conn.Close()
