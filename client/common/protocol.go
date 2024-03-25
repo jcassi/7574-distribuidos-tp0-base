@@ -31,7 +31,7 @@ func SendBets(bets []Bet, conn net.Conn, clientId string, betsByBatch uint) erro
 			return err
 		}
 	}
-	return nil
+	return ReceiveAckBets(conn, clientId)
 }
 
 // Converts a slice of bets to the bytes according to the protocol
@@ -62,6 +62,7 @@ func ReceiveAckBets(conn net.Conn, clientId string) error {
 	buffer := make([]byte, 1)
 	read := 0
 	size := 1
+	log.Info("action: recibir_ack_batch | result: in_progress")
 	for read < size {
 		n, err := conn.Read(buffer)
 		if err != nil {
@@ -70,14 +71,16 @@ func ReceiveAckBets(conn net.Conn, clientId string) error {
 		if n > 0 {
 			//log.Infof("bets ack %v", buffer[0])
 			if buffer[0] == PACKET_TYPE_BATCH_ACK {
+				log.Info("action: recibir_ack_batch | result: success")
 				return nil
 			} else {
+				log.Error("action: recibir_ack_batch | result: fail")
 				return fmt.Errorf("expected packet type %v, received %v", PACKET_TYPE_BATCH_ACK, buffer[0])
 			}
 		}
 		read += n
 	}
-
+	log.Info("action: recibir_ack_batch | result: success")
 	return nil
 }
 
@@ -154,20 +157,29 @@ func NotifyServer(agency string, conn net.Conn) error {
 	id, _ := strconv.Atoi(agency)
 	bytes := []byte{PACKET_TYPE_NOTIFY, uint8(id)}
 
-	return SendToSocket(bytes, conn)
+	err := SendToSocket(bytes, conn)
+	if err != nil {
+		return err
+	}
+	return ReceiveAckNotify(conn, agency)
 }
 
-func QueryWinners(agency string, conn net.Conn) error {
+func QueryWinners(agency string, conn net.Conn) ([]string, error) {
 	id, _ := strconv.Atoi(agency)
 	bytes := []byte{PACKET_TYPE_QUERY, uint8(id)}
 
-	return SendToSocket(bytes, conn)
+	err := SendToSocket(bytes, conn)
+	if err != nil {
+		return nil, err
+	}
+	return ReceiveQueryResponse(conn, agency)
 }
 
 func ReceiveAckNotify(conn net.Conn, clientId string) error {
 	buffer := make([]byte, 1)
 	read := 0
 	size := 1
+	log.Info("action: recibir_ack_notify | result: in_progress")
 	for read < size {
 		n, err := conn.Read(buffer)
 		if err != nil {
@@ -176,24 +188,29 @@ func ReceiveAckNotify(conn net.Conn, clientId string) error {
 		if n > 0 {
 			//log.Infof("notify ack %v", buffer[0])
 			if buffer[0] == PACKET_TYPE_NOTIFY_ACK {
+				log.Info("action: recibir_ack_notify | result: success")
 				return nil
 			} else {
-				log.Error("mal")
+				err = fmt.Errorf("expected packet type %v, received %v", PACKET_TYPE_NOTIFY_ACK, buffer[0])
+				log.Errorf("action: recibir_ack_notify | result: fail | error %v", err)
+				return err
 			}
 		}
 		read += n
 	}
 
+	log.Error("action: recibir_ack_notify | result: success")
 	return nil
 }
 
-func ReceiveAckQuery(conn net.Conn, clientId string) ([]string, error) {
+func ReceiveQueryResponse(conn net.Conn, clientId string) ([]string, error) {
 	buffer := make([]byte, 1024)
 	read := 0
 	size := 4
 	knowSize := false
 	var winners []string
 
+	log.Info("action: recibir_ganadores | result: in_progress")
 	for read < size { //TODO timeout?
 		n, err := conn.Read(buffer)
 		if err != nil {
@@ -205,7 +222,9 @@ func ReceiveAckQuery(conn net.Conn, clientId string) ([]string, error) {
 		}
 
 		if buffer[0] != PACKET_TYPE_QUERY_RESPONSE {
-			return nil, fmt.Errorf("expected packet type %v, received %v", PACKET_TYPE_QUERY_RESPONSE, buffer[0])
+			err = fmt.Errorf("expected packet type %v, received %v", PACKET_TYPE_QUERY_RESPONSE, buffer[0])
+			log.Errorf("action: recibir_ganadores | result: fail | error %v", err)
+			return nil, err
 		}
 		if !knowSize {
 			size = int(uint16(buffer[2])<<8 | uint16(buffer[3]))
@@ -215,5 +234,6 @@ func ReceiveAckQuery(conn net.Conn, clientId string) ([]string, error) {
 
 	myString := string(buffer[4 : 4+size])
 	winners = strings.Split(myString, ",")
+	log.Info("action: recibir_ganadores | result: success")
 	return winners, nil
 }

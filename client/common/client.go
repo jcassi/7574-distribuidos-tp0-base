@@ -137,7 +137,7 @@ func (c *Client) SendBet(bet Bet) {
 }
 
 // Reads the bets from the filename received as parameters, sends them in batches and receives its ACKs
-func (c *Client) SendBets(filename string, betsByBatch uint) {
+func (c *Client) SendBets(filename string, betsByBatch uint) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatal(err)
@@ -150,6 +150,7 @@ func (c *Client) SendBets(filename string, betsByBatch uint) {
 		isEOF, bets, err = c.ReadBatchFromFile(reader, betsByBatch)
 		if err != nil {
 			log.Errorf("action: leer_batch_archivo | result: fail")
+			return err
 		}
 		log.Info("action: leer_batch_archivo | result: success")
 
@@ -157,23 +158,17 @@ func (c *Client) SendBets(filename string, betsByBatch uint) {
 		log.Info("action: enviar_batch | result: in_progress")
 		err := SendBets(bets, c.conn, c.config.ID, betsByBatch)
 		if err != nil {
-			log.Error("action: enviar_batch | result: fail")
+			log.Errorf("action: enviar_batch | result: fail | error %v", err)
 			c.conn.Close()
+			return err
+
 		}
 		log.Info("action: enviar_batch | result: success")
 		bets = nil
 
-		log.Info("action: recibir_ack_batch | result: in_progress")
-		err = ReceiveAckBets(c.conn, c.config.ID)
-		if err != nil {
-			log.Error("action: recibir_ack_batch | result: fail")
-			c.conn.Close()
-			return
-		}
-		log.Info("action: recibir_ack_batch | result: success")
-
 		c.conn.Close()
 	}
+	return nil
 }
 
 // Read the amount of lines specified in the environment, creates a bet for each line and returns them.
@@ -198,45 +193,31 @@ func (c *Client) ReadBatchFromFile(reader *bufio.Reader, betsByBatch uint) (bool
 	return isEOF, bets, nil
 }
 
-func (c *Client) NotifyServer() {
+func (c *Client) NotifyServer() error {
 	c.createClientSocket()
+	log.Info("action: notificar_servidor | result: in_progress")
 	err := NotifyServer(c.config.ID, c.conn)
 	if err != nil {
-		log.Error("Error notificando servidor")
+		log.Errorf("action: notificar_servidor | result: fail | error %v", err)
 		c.conn.Close()
-		return
+		return err
 	}
-
-	log.Info("action: recibir_ack_notify | result: in_progress")
-	err = ReceiveAckNotify(c.conn, c.config.ID)
-	if err != nil {
-		log.Error("action: recibir_ack_notify | result: fail")
-		c.conn.Close()
-		return
-	}
-	log.Info("action: recibir_ack_notify | result: success")
+	log.Info("action: notificar_servidor | result: success")
 
 	c.conn.Close()
+	return nil
 }
 
-func (c *Client) QueryWinners() {
+func (c *Client) QueryWinners() error {
 	c.createClientSocket()
-	err := QueryWinners(c.config.ID, c.conn)
+	winners, err := QueryWinners(c.config.ID, c.conn)
 	if err != nil {
-		log.Error("Error pidiendo ganadores")
+		log.Errorf("%v", err)
 		c.conn.Close()
+		return err
 	}
-
-	log.Info("action: recibir_ack_query | result: in_progress")
-	winners, err := ReceiveAckQuery(c.conn, c.config.ID)
-	if err != nil {
-		log.Error("action: recibir_ack_query | result: fail")
-		c.conn.Close()
-		return
-	}
-
-	log.Info("action: recibir_ack_query | result: success")
 	log.Infof("winners %v", winners)
 
 	c.conn.Close()
+	return nil
 }

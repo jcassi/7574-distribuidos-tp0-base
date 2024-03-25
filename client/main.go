@@ -110,7 +110,16 @@ func main() {
 	}
 
 	client := common.NewClient(clientConfig)
-	client.SendBets(fmt.Sprintf("agency-%s.csv", clientConfig.ID), v.GetUint("batch.betsByBatch"))
-	client.NotifyServer() //TODO nombre
-	client.QueryWinners() //TODO nombre
+	err = client.SendBets(fmt.Sprintf("agency-%s.csv", clientConfig.ID), v.GetUint("batch.betsByBatch"))
+	if err != nil {
+		return
+	}
+	err = client.NotifyServer() //TODO nombre
+	if err != nil {
+		return
+	}
+	err = client.QueryWinners() //TODO nombre
+	if err != nil {
+		return
+	}
 }

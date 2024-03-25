@@ -4,6 +4,7 @@ import signal
 from common.utils import Bet, Notify, Query, has_won, load_bets, store_bets
 from common.protocol import PACKET_TYPE_BATCH, PACKET_TYPE_NOTIFY, PACKET_TYPE_QUERY, receive_packet, respond_bets, respond_notify, respond_query
 
+CLIENTS_COUNT = 1
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -95,7 +96,7 @@ class Server:
         
     def __process_query(self, query: Query, client_sock):
         winners = []
-        if len(self._finished_clients) == 1:
+        if len(self._finished_clients) == CLIENTS_COUNT:
             logging.info("action: sorteo | result: success")
             bets = load_bets()
             for bet in bets:
