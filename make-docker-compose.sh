@@ -36,7 +36,8 @@ echo "
     depends_on:
       - server
     volumes:
-      - ./client/config.yaml:/config.yaml" >> temp.yaml
+      - ./client/config.yaml:/config.yaml
+      - ./client/agency-$i.csv:/agency-$i.csv" >> temp.yaml
 done
 
 echo "
