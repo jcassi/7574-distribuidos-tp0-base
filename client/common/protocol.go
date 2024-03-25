@@ -71,7 +71,6 @@ func ReceiveAckBets(conn net.Conn, clientId string) error {
 			return err
 		}
 		if n > 0 {
-			//log.Infof("bets ack %v", buffer[0])
 			if buffer[0] == PACKET_TYPE_BATCH_ACK {
 				log.Info("action: recibir_ack_batch | result: success")
 				return nil
@@ -248,5 +247,5 @@ func ReceiveQueryResponse(conn net.Conn, clientId string) ([]string, error) {
 type LotteryRejection struct{}
 
 func (m *LotteryRejection) Error() string {
-	return "boom"
+	return "Not all agencies have stopped sending bets"
 }
