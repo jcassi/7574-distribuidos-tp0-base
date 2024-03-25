@@ -1,8 +1,8 @@
 import socket
 import logging
 import signal
-from common.utils import Bet, store_bets
-from common.protocol import ReceiveBet, receive_bets, RespondBet, respond_bets
+from common.utils import Bet, Notify, Query, has_won, load_bets, store_bets
+from common.protocol import PACKET_TYPE_BATCH, PACKET_TYPE_NOTIFY, PACKET_TYPE_QUERY, receive_packet, respond_bets, respond_notify, respond_query
 
 
 class Server:
@@ -12,6 +12,7 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._stop = False
+        self._finished_clients = []
         signal.signal(signal.SIGINT, self.__graceful_shutdown)
         signal.signal(signal.SIGTERM, self.__graceful_shutdown)
 
@@ -39,11 +40,13 @@ class Server:
         """
         try:
             addr = client_sock.getpeername()[0]
-            bets = receive_bets(client_sock)
-            if bets is not None:
-                store_bets(bets)
-                logging.info(f'action: apuesta_almacenada | result: success | ip {addr}')
-                respond_bets(client_sock, bets[0].agency)
+            (packet_type, msg) = receive_packet(client_sock)
+            if packet_type == PACKET_TYPE_BATCH:
+                self.__process_bets(msg, client_sock)
+            elif packet_type == PACKET_TYPE_NOTIFY:
+                self.__process_notify(msg, client_sock)
+            elif packet_type == PACKET_TYPE_QUERY:
+                self.__process_query(msg, client_sock)
                         
             client_sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
@@ -76,3 +79,28 @@ class Server:
         self._server_socket.close()
         self._stop = True
         logging.info("action: signal_handling | result: success")
+
+    def __process_bets(self, bets: list[Bet], client_sock):
+        store_bets(bets)
+        logging.info(f'action: apuesta_almacenada | result: success') #TODO addr
+        respond_bets(client_sock)
+
+    def __process_notify(self, notify: Notify, client_sock):
+        #logging.info("proceso notify")
+        if not notify.agency in self._finished_clients:
+            self._finished_clients.append(notify.agency)
+        #logging.info("RESPONDO notify")
+        respond_notify(client_sock)
+
+        
+    def __process_query(self, query: Query, client_sock):
+        winners = []
+        if len(self._finished_clients) == 1:
+            logging.info("action: sorteo | result: success")
+            bets = load_bets()
+            for bet in bets:
+                if bet.agency == query.agency and has_won(bet):
+                    winners.append(bet.document) 
+            respond_query(True, winners, client_sock)
+        else:
+            respond_query(False, winners, client_sock)

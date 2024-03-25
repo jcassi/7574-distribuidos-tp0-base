@@ -197,3 +197,46 @@ func (c *Client) ReadBatchFromFile(reader *bufio.Reader, betsByBatch uint) (bool
 	}
 	return isEOF, bets, nil
 }
+
+func (c *Client) NotifyServer() {
+	c.createClientSocket()
+	err := NotifyServer(c.config.ID, c.conn)
+	if err != nil {
+		log.Error("Error notificando servidor")
+		c.conn.Close()
+		return
+	}
+
+	log.Info("action: recibir_ack_notify | result: in_progress")
+	err = ReceiveAckNotify(c.conn, c.config.ID)
+	if err != nil {
+		log.Error("action: recibir_ack_notify | result: fail")
+		c.conn.Close()
+		return
+	}
+	log.Info("action: recibir_ack_notify | result: success")
+
+	c.conn.Close()
+}
+
+func (c *Client) QueryWinners() {
+	c.createClientSocket()
+	err := QueryWinners(c.config.ID, c.conn)
+	if err != nil {
+		log.Error("Error pidiendo ganadores")
+		c.conn.Close()
+	}
+
+	log.Info("action: recibir_ack_query | result: in_progress")
+	winners, err := ReceiveAckQuery(c.conn, c.config.ID)
+	if err != nil {
+		log.Error("action: recibir_ack_query | result: fail")
+		c.conn.Close()
+		return
+	}
+
+	log.Info("action: recibir_ack_query | result: success")
+	log.Infof("winners %v", winners)
+
+	c.conn.Close()
+}

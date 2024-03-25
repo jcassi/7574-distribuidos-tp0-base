@@ -111,4 +111,6 @@ func main() {
 
 	client := common.NewClient(clientConfig)
 	client.SendBets(fmt.Sprintf("agency-%s.csv", clientConfig.ID), v.GetUint("batch.betsByBatch"))
+	client.NotifyServer() //TODO nombre
+	client.QueryWinners() //TODO nombre
 }
