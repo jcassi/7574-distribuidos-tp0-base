@@ -4,7 +4,7 @@ import signal
 from common.utils import Bet, Notify, Query, has_won, load_bets, store_bets
 from common.protocol import PACKET_TYPE_BATCH, PACKET_TYPE_NOTIFY, PACKET_TYPE_QUERY, receive_packet, respond_bets, respond_notify, respond_query
 
-CLIENTS_COUNT = 1
+CLIENTS_COUNT = 5
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -41,14 +41,16 @@ class Server:
         """
         try:
             addr = client_sock.getpeername()[0]
-            (packet_type, msg) = receive_packet(client_sock)
-            if packet_type == PACKET_TYPE_BATCH:
-                self.__process_bets(msg, client_sock)
-            elif packet_type == PACKET_TYPE_NOTIFY:
-                self.__process_notify(msg, client_sock)
-            elif packet_type == PACKET_TYPE_QUERY:
-                self.__process_query(msg, client_sock)
-                        
+            packet = receive_packet(client_sock)
+            if packet is not None:
+                (packet_type, msg) = packet
+                if packet_type == PACKET_TYPE_BATCH:
+                    self.__process_bets(msg, client_sock)
+                elif packet_type == PACKET_TYPE_NOTIFY:
+                    self.__process_notify(msg, client_sock)
+                elif packet_type == PACKET_TYPE_QUERY:
+                    self.__process_query(msg, client_sock)
+            
             client_sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
@@ -95,13 +97,15 @@ class Server:
 
         
     def __process_query(self, query: Query, client_sock):
+        logging.info("action: pedido_sorteo | result: in_progress")
         winners = []
         if len(self._finished_clients) == CLIENTS_COUNT:
             logging.info("action: sorteo | result: success")
             bets = load_bets()
             for bet in bets:
                 if bet.agency == query.agency and has_won(bet):
-                    winners.append(bet.document) 
+                    winners.append(bet.document)
             respond_query(True, winners, client_sock)
         else:
+            logging.info("action: sorteo | result: rejected")
             respond_query(False, winners, client_sock)

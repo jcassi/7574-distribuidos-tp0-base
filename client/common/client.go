@@ -2,6 +2,7 @@ package common
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -137,19 +138,21 @@ func (c *Client) SendBet(bet Bet) {
 }
 
 // Reads the bets from the filename received as parameters, sends them in batches and receives its ACKs
-func (c *Client) SendBets(filename string, betsByBatch uint) error {
+func (c *Client) SendBets(filename string, betsByBatch uint, sigchnl chan os.Signal) error {
 	file, err := os.Open(filename)
 	if err != nil {
 		log.Fatal(err)
 	}
 	reader := bufio.NewReader(file)
 	isEOF := false
+
 	for !isEOF {
 		var bets []Bet
 		log.Info("action: leer_batch_archivo | result: in_progress")
 		isEOF, bets, err = c.ReadBatchFromFile(reader, betsByBatch)
 		if err != nil {
 			log.Errorf("action: leer_batch_archivo | result: fail")
+			file.Close()
 			return err
 		}
 		log.Info("action: leer_batch_archivo | result: success")
@@ -160,6 +163,7 @@ func (c *Client) SendBets(filename string, betsByBatch uint) error {
 		if err != nil {
 			log.Errorf("action: enviar_batch | result: fail | error %v", err)
 			c.conn.Close()
+			file.Close()
 			return err
 
 		}
@@ -167,7 +171,15 @@ func (c *Client) SendBets(filename string, betsByBatch uint) error {
 		bets = nil
 
 		c.conn.Close()
+		select {
+		case <-sigchnl:
+			file.Close()
+			log.Infof("action: signal_handling | result: success | client_id: %v", c.config.ID)
+			return nil
+		default:
+		}
 	}
+	file.Close()
 	return nil
 }
 
@@ -194,8 +206,8 @@ func (c *Client) ReadBatchFromFile(reader *bufio.Reader, betsByBatch uint) (bool
 }
 
 func (c *Client) NotifyServer() error {
-	c.createClientSocket()
 	log.Info("action: notificar_servidor | result: in_progress")
+	c.createClientSocket()
 	err := NotifyServer(c.config.ID, c.conn)
 	if err != nil {
 		log.Errorf("action: notificar_servidor | result: fail | error %v", err)
@@ -208,16 +220,37 @@ func (c *Client) NotifyServer() error {
 	return nil
 }
 
-func (c *Client) QueryWinners() error {
-	c.createClientSocket()
-	winners, err := QueryWinners(c.config.ID, c.conn)
-	if err != nil {
-		log.Errorf("%v", err)
-		c.conn.Close()
-		return err
+func (c *Client) QueryWinners(sigchnl chan os.Signal) error {
+	log.Info("action: consultar_ganadores | result: in_progress")
+
+	for {
+		c.createClientSocket()
+		winners, err := QueryWinners(c.config.ID, c.conn)
+		if err != nil {
+			if errors.Is(err, &LotteryRejection{}) {
+				log.Infof("action: consultar_ganadores | result: fail | error server_rejection")
+			} else {
+				log.Infof("action: consultar_ganadores | result: fail | error %v", err)
+				c.conn.Close()
+				return err
+			}
+		} else {
+			log.Infof("winners %v", winners)
+			break
+		}
+
+		// Wait a time between sending one message and the next one
+		nextIteration := time.After(c.config.LoopPeriod)
+		select {
+		case <-nextIteration:
+		case <-sigchnl:
+			c.conn.Close()
+			log.Infof("action: signal_handling | result: success | client_id: %v", c.config.ID)
+			return nil
+		}
 	}
-	log.Infof("winners %v", winners)
 
 	c.conn.Close()
+	log.Info("action: consultar_ganadores | result: success")
 	return nil
 }

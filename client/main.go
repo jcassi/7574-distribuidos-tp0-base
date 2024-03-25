@@ -2,7 +2,10 @@ package main
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/pkg/errors"
@@ -110,15 +113,17 @@ func main() {
 	}
 
 	client := common.NewClient(clientConfig)
-	err = client.SendBets(fmt.Sprintf("agency-%s.csv", clientConfig.ID), v.GetUint("batch.betsByBatch"))
+	sigchnl := make(chan os.Signal, 1)
+	signal.Notify(sigchnl, syscall.SIGINT, syscall.SIGTERM)
+	err = client.SendBets(fmt.Sprintf("agency-%s.csv", clientConfig.ID), v.GetUint("batch.betsByBatch"), sigchnl)
 	if err != nil {
 		return
 	}
-	err = client.NotifyServer() //TODO nombre
+	err = client.NotifyServer()
 	if err != nil {
 		return
 	}
-	err = client.QueryWinners() //TODO nombre
+	err = client.QueryWinners(sigchnl)
 	if err != nil {
 		return
 	}

@@ -21,7 +21,7 @@ PACKET_TYPE_QUERY_RESPONSE = 5
 PACKET_QUERY_RESPONSE_SUCCESS = 0
 PACKET_QUERY_RESPONSE_FAILURE = 1
 
-#TODO refactor this mess
+#TODO refactor this
 def receive_packet(client_sock):
     bytes_read = []
     read = 0
@@ -65,13 +65,15 @@ def receive_packet(client_sock):
             payload_size = 0
             know_size = True
 
-    #logging.info(f'{bytes_read}')
-    if packet_type == 0:
+    if packet_type == PACKET_TYPE_BATCH:
         return (PACKET_TYPE_BATCH, __deserialize_batch(bytes_read))
-    elif packet_type == 1:
+    elif packet_type == PACKET_TYPE_NOTIFY:
         return (PACKET_TYPE_NOTIFY, __deserialize_notify(bytes_read))
-    else:
+    elif packet_type == PACKET_TYPE_QUERY:
         return (PACKET_TYPE_QUERY, __deserialize_query(bytes_read))
+    else:
+        return None
+        
 
 def __deserialize_batch(bytes_read):
     """
@@ -88,48 +90,15 @@ def __deserialize_batch(bytes_read):
             return None
         else:
             (n, bet) = bet
-            #logging.info(f'bet {bet.agency}, {bet.first_name}, {bet.last_name}, {bet.document}, {bet.birthdate}, {bet.number}')
             bets.append(bet)
             position += n
-    #logging.info(f'bets len {len(bets)}')
     return bets
 
 def __deserialize_notify(bytes_read):
-    n = Notify(int(bytes_read[1]))
-    #logging.info(f'notify {n.agency}')
-    return n
+    return Notify(int(bytes_read[1]))
 
 def __deserialize_query(bytes_read):
-    q = Query(int(bytes_read[1]))
-    #logging.info(f'query {q.agency}')
-    return q
-
-def __read_batch_bytes(client_sock):
-    """
-    Read bytes from a batch of bets and return them raw
-    """
-    bytes_read = []
-    read = 0
-    payload_size = 0
-    logging.info(f'action: receive_batch | result: in_progress | ip: {client_sock.getpeername()[0]}')
-    try:
-        while read < payload_size + PACKET_TYPE_LEN + CLIENT_ID_LEN + PAYLOAD_LEN :
-            client_sock.settimeout(0.5)
-            try:
-                chunk = client_sock.recv(1024)
-            except socket.timeout:
-                logging.error(f'action: receive_batch | result: fail | error: timed out | ip: {client_sock.getpeername()[0]}')
-                return None
-            bytes_read += list(chunk)
-            data_length = len(chunk)
-            if read == 0 and data_length >= PACKET_TYPE_LEN + CLIENT_ID_LEN + PAYLOAD_LEN:
-                payload_size = bytes_read[2] << 8 | bytes_read[3]
-            read += data_length
-    except OSError as e:
-        logging.error(f'action: receive_batch | result: fail | ip: {client_sock.getpeername()[0]} | error: {e}')
-        raise e
-    logging.info(f'action: receive_batch | result: success | ip: {client_sock.getpeername()[0]}')
-    return bytes_read
+    return Query(int(bytes_read[1]))
 
 def __deserialize_bet(agency: str, betsBytes: bytes):
     """
@@ -155,7 +124,6 @@ def respond_bets(client_sock: socket):
     """
     logging.info(f'action: sending_batch_ack | result: in_progress | ip: {client_sock.getpeername()[0]}')
     response = PACKET_TYPE_BATCH_ACK.to_bytes(1, byteorder='big')
-    n = 0
     try:
         __send_bytes(response, client_sock)
     except OSError as e:
@@ -186,17 +154,14 @@ def respond_query(can_respond: bool, winners: list[str], client_sock: socket):
         response.append(len(winners_bytes).to_bytes(2, 'big'))
         response.append(winners_bytes)
         response =  b''.join(response)
-        #logging.info(f'winners {winners}')
-        #logging.info(f'response {response} len {len(response)} {response[2]} {response[3]}')
-        #client_sock.send("{}\n".format(msg).encode('utf-8'))
     else:
         response.append(PACKET_TYPE_QUERY_RESPONSE.to_bytes(1, 'big'))
         response.append(PACKET_QUERY_RESPONSE_FAILURE.to_bytes(1, 'big'))
         length = 0
-        response.append(length.to_bytes(1, 'big'))
-        response =  b''.join(response)    
+        response.append(length.to_bytes(2, 'big'))
+        response =  b''.join(response)
     try:
-        __send_bytes(response, client_sock) #TODO log
+        __send_bytes(response, client_sock)
     except OSError as e:
         raise e
             

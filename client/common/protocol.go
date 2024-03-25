@@ -20,6 +20,8 @@ const PACKET_TYPE_QUERY_RESPONSE = 5
 const PACKET_QUERY_RESPONSE_SUCCESS = 0
 const PACKET_QUERY_RESPONSE_FAILURE = 1
 
+const PACKET_QUERY_RESPONSE_MIN_LEN = 4
+
 // Receives a slice of bets, serializes them and sends them to the server over the connection received as parameter
 func SendBets(bets []Bet, conn net.Conn, clientId string, betsByBatch uint) error {
 	i := 0
@@ -206,18 +208,19 @@ func ReceiveAckNotify(conn net.Conn, clientId string) error {
 func ReceiveQueryResponse(conn net.Conn, clientId string) ([]string, error) {
 	buffer := make([]byte, 1024)
 	read := 0
-	size := 4
+	size := PACKET_QUERY_RESPONSE_MIN_LEN
 	knowSize := false
 	var winners []string
 
 	log.Info("action: recibir_ganadores | result: in_progress")
-	for read < size { //TODO timeout?
+	for read < size+PACKET_QUERY_RESPONSE_MIN_LEN {
 		n, err := conn.Read(buffer)
 		if err != nil {
+			log.Errorf("action: recibir_ganadores | result: fail | error %v", err)
 			return nil, err
 		}
 		read += n
-		if read < 4 {
+		if read < PACKET_QUERY_RESPONSE_MIN_LEN {
 			continue
 		}
 
@@ -228,12 +231,22 @@ func ReceiveQueryResponse(conn net.Conn, clientId string) ([]string, error) {
 		}
 		if !knowSize {
 			size = int(uint16(buffer[2])<<8 | uint16(buffer[3]))
-			//log.Infof("size %v", size)
 		}
 	}
 
-	myString := string(buffer[4 : 4+size])
-	winners = strings.Split(myString, ",")
-	log.Info("action: recibir_ganadores | result: success")
-	return winners, nil
+	if buffer[1] == PACKET_QUERY_RESPONSE_SUCCESS {
+		winnersStr := string(buffer[PACKET_QUERY_RESPONSE_MIN_LEN : PACKET_QUERY_RESPONSE_MIN_LEN+size])
+		winners = strings.Split(winnersStr, ",")
+		log.Info("action: recibir_ganadores | result: success")
+		return winners, nil
+	} else {
+		return nil, &LotteryRejection{}
+	}
+
+}
+
+type LotteryRejection struct{}
+
+func (m *LotteryRejection) Error() string {
+	return "boom"
 }
