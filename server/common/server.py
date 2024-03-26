@@ -5,16 +5,15 @@ from common.utils import Bet, Notify, Query, has_won, load_bets, store_bets
 from common.protocol import PACKET_TYPE_BATCH, PACKET_TYPE_NOTIFY, PACKET_TYPE_QUERY, receive_packet, respond_bets, respond_notify, respond_query
 from multiprocessing import Array, Process, Lock, Value
 
-CLIENTS_COUNT = 5
 
 class Server:
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, clients_count: int):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._stop = Value('i', 0)
-        self._finished_clients = Array('i', [0] * CLIENTS_COUNT )
+        self._finished_clients = Array('i', [0] * clients_count )
         self._client_handlers = []
         self._file_lock = Lock()
 
