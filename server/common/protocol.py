@@ -29,11 +29,10 @@ def receive_packet(client_sock):
     packet_type = 0
     know_size = False
     while read < payload_size + PACKET_TYPE_LEN + CLIENT_ID_LEN:
-        client_sock.settimeout(0.5)
         try:
             chunk = client_sock.recv(1024)
-        except socket.timeout:
-            logging.error(f'action: receive_batch | result: fail | error: timed out | ip: {client_sock.getpeername()[0]}')
+        except socket.EOF as e:
+            logging.error(f'action: receive_packet | result: fail | error {e}')
             return None
         bytes_read += list(chunk)
         read += len(chunk)

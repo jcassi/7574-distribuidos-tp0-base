@@ -146,18 +146,23 @@ func (c *Client) SendBets(filename string, betsByBatch uint, sigchnl chan os.Sig
 	reader := bufio.NewReader(file)
 	isEOF := false
 
-	for !isEOF {
+	c.createClientSocket()
+loop:
+	for {
 		var bets []Bet
 		log.Info("action: leer_batch_archivo | result: in_progress")
 		isEOF, bets, err = c.ReadBatchFromFile(reader, betsByBatch)
 		if err != nil {
 			log.Errorf("action: leer_batch_archivo | result: fail")
+			c.conn.Close()
 			file.Close()
 			return err
 		}
+		if isEOF {
+			break
+		}
 		log.Info("action: leer_batch_archivo | result: success")
 
-		c.createClientSocket()
 		log.Info("action: enviar_batch | result: in_progress")
 		err := SendBets(bets, c.conn, c.config.ID, betsByBatch)
 		if err != nil {
@@ -170,15 +175,14 @@ func (c *Client) SendBets(filename string, betsByBatch uint, sigchnl chan os.Sig
 		log.Info("action: enviar_batch | result: success")
 		bets = nil
 
-		c.conn.Close()
 		select {
 		case <-sigchnl:
-			file.Close()
 			log.Infof("action: signal_handling | result: success | client_id: %v", c.config.ID)
-			return nil
+			break loop
 		default:
 		}
 	}
+	c.conn.Close()
 	file.Close()
 	return nil
 }

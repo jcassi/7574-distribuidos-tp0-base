@@ -50,15 +50,22 @@ class Server:
         """
         try:
             addr = client_sock.getpeername()[0]
-            packet = receive_packet(client_sock)
-            if packet is not None:
-                (packet_type, msg) = packet
-                if packet_type == PACKET_TYPE_BATCH:
-                    self.__process_bets(msg, client_sock, lock_file)
-                elif packet_type == PACKET_TYPE_NOTIFY:
-                    self.__process_notify(msg, client_sock, finished_clients)
-                elif packet_type == PACKET_TYPE_QUERY:
-                    self.__process_query(msg, client_sock, lock_file, finished_clients)
+            close_connection = False
+            while not close_connection:
+                packet = receive_packet(client_sock)
+                if packet is not None:
+                    (packet_type, msg) = packet
+                    if packet_type == PACKET_TYPE_BATCH:
+                        self.__process_bets(msg, client_sock, lock_file)
+                    elif packet_type == PACKET_TYPE_NOTIFY:
+                        self.__process_notify(msg, client_sock, finished_clients)
+                        close_connection = True
+                    elif packet_type == PACKET_TYPE_QUERY:
+                        self.__process_query(msg, client_sock, lock_file, finished_clients)
+                        close_connection = True
+                else:
+                    logging.info("close connection")
+                    close_connection = True
             
             client_sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
