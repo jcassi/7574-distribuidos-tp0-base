@@ -3,7 +3,7 @@ import logging
 import signal
 from common.utils import Bet, Notify, Query, has_won, load_bets, store_bets
 from common.protocol import PACKET_TYPE_BATCH, PACKET_TYPE_NOTIFY, PACKET_TYPE_QUERY, receive_packet, respond_bets, respond_notify, respond_query
-from multiprocessing import Array, Process, Lock
+from multiprocessing import Array, Process, Lock, Value
 
 CLIENTS_COUNT = 5
 
@@ -13,7 +13,7 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
-        self._stop = False
+        self._stop = Value('i', 0)
         self._finished_clients = Array('i', [0] * CLIENTS_COUNT )
         self._client_handlers = []
         self._file_lock = Lock()
@@ -30,13 +30,16 @@ class Server:
         finishes, servers starts to accept new connections again
         """
 
-        while not self._stop:
+        stop = False
+        while not stop:
             client_sock = self.__accept_new_connection()
             if client_sock is None:
                 break
             client_handler = Process(target=self.__handle_client_connection, args=(client_sock,self._file_lock, self._finished_clients))
             self._client_handlers.append(client_handler)
             client_handler.start()
+            with self._stop.get_lock():
+                stop = self._stop == 1
 
         for handler in self._client_handlers:
             handler.join()
@@ -64,8 +67,9 @@ class Server:
                         self.__process_query(msg, client_sock, lock_file, finished_clients)
                         close_connection = True
                 else:
-                    logging.info("close connection")
                     close_connection = True
+                with self._stop.get_lock():
+                    close_connection = self._stop == 1
             
             client_sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
@@ -96,7 +100,8 @@ class Server:
         logging.info("action: signal_handling | result: in_progress")
         self._server_socket.shutdown(socket.SHUT_RDWR)
         self._server_socket.close()
-        self._stop = True
+        with self._stop.get_lock():
+            self._stop = 1
         logging.info("action: signal_handling | result: success")
 
     def __process_bets(self, bets: list[Bet], client_sock: socket, lock):
