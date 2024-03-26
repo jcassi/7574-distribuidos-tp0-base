@@ -4,16 +4,16 @@ import signal
 from common.utils import Bet, Notify, Query, has_won, load_bets, store_bets
 from common.protocol import PACKET_TYPE_BATCH, PACKET_TYPE_NOTIFY, PACKET_TYPE_QUERY, receive_packet, respond_bets, respond_notify, respond_query
 
-CLIENTS_COUNT = 5
 
 class Server:
-    def __init__(self, port, listen_backlog):
+    def __init__(self, port, listen_backlog, clients_count: int):
         # Initialize server socket
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._stop = False
         self._finished_clients = []
+        self._clients_count = clients_count
         signal.signal(signal.SIGINT, self.__graceful_shutdown)
         signal.signal(signal.SIGTERM, self.__graceful_shutdown)
 
@@ -99,7 +99,7 @@ class Server:
     def __process_query(self, query: Query, client_sock):
         logging.info("action: pedido_sorteo | result: in_progress")
         winners = []
-        if len(self._finished_clients) == CLIENTS_COUNT:
+        if len(self._finished_clients) == self._clients_count:
             logging.info("action: sorteo | result: success")
             bets = load_bets()
             for bet in bets:
