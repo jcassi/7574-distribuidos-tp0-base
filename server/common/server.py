@@ -3,6 +3,7 @@ import logging
 import signal
 from common.utils import Bet, Notify, Query, has_won, load_bets, store_bets
 from common.protocol import PACKET_TYPE_BATCH, PACKET_TYPE_NOTIFY, PACKET_TYPE_QUERY, receive_packet, respond_bets, respond_notify, respond_query
+from multiprocessing import Array, Process, Lock
 
 CLIENTS_COUNT = 5
 
@@ -13,7 +14,10 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._stop = False
-        self._finished_clients = []
+        self._finished_clients = Array('i', [0] * CLIENTS_COUNT )
+        self._client_handlers = []
+        self._file_lock = Lock()
+
         signal.signal(signal.SIGINT, self.__graceful_shutdown)
         signal.signal(signal.SIGTERM, self.__graceful_shutdown)
 
@@ -30,9 +34,14 @@ class Server:
             client_sock = self.__accept_new_connection()
             if client_sock is None:
                 break
-            self.__handle_client_connection(client_sock)
+            client_handler = Process(target=self.__handle_client_connection, args=(client_sock,self._file_lock, self._finished_clients))
+            self._client_handlers.append(client_handler)
+            client_handler.start()
 
-    def __handle_client_connection(self, client_sock):
+        for handler in self._client_handlers:
+            handler.join()
+
+    def __handle_client_connection(self, client_sock, lock_file, finished_clients):
         """
         Read message from a specific client socket and closes the socket
 
@@ -45,11 +54,11 @@ class Server:
             if packet is not None:
                 (packet_type, msg) = packet
                 if packet_type == PACKET_TYPE_BATCH:
-                    self.__process_bets(msg, client_sock)
+                    self.__process_bets(msg, client_sock, lock_file)
                 elif packet_type == PACKET_TYPE_NOTIFY:
-                    self.__process_notify(msg, client_sock)
+                    self.__process_notify(msg, client_sock, finished_clients)
                 elif packet_type == PACKET_TYPE_QUERY:
-                    self.__process_query(msg, client_sock)
+                    self.__process_query(msg, client_sock, lock_file, finished_clients)
             
             client_sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
@@ -83,25 +92,32 @@ class Server:
         self._stop = True
         logging.info("action: signal_handling | result: success")
 
-    def __process_bets(self, bets: list[Bet], client_sock):
+    def __process_bets(self, bets: list[Bet], client_sock: socket, lock):
+        lock.acquire()
         store_bets(bets)
-        logging.info(f'action: apuesta_almacenada | result: success') #TODO addr
+        lock.release()
+        logging.info(f'action: apuesta_almacenada | result: success')
         respond_bets(client_sock)
 
-    def __process_notify(self, notify: Notify, client_sock):
-        #logging.info("proceso notify")
-        if not notify.agency in self._finished_clients:
-            self._finished_clients.append(notify.agency)
-        #logging.info("RESPONDO notify")
+    def __process_notify(self, notify: Notify, client_sock: socket, finished_clients):
+        with finished_clients.get_lock():
+            finished_clients[notify.agency-1] = 1
         respond_notify(client_sock)
 
         
-    def __process_query(self, query: Query, client_sock):
+    def __process_query(self, query: Query, client_sock, lock_file, finished_clients):
         logging.info("action: pedido_sorteo | result: in_progress")
         winners = []
-        if len(self._finished_clients) == CLIENTS_COUNT:
+        can_lottery = True
+        with finished_clients.get_lock():
+            for i in range(len(finished_clients)):
+                if finished_clients[i] == 0:
+                    can_lottery = False
+        if can_lottery:
             logging.info("action: sorteo | result: success")
+            lock_file.acquire()
             bets = load_bets()
+            lock_file.release()
             for bet in bets:
                 if bet.agency == query.agency and has_won(bet):
                     winners.append(bet.document)
