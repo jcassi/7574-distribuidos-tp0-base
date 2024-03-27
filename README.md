@@ -1,3 +1,49 @@
+## TP0
+
+### Ejercicio 1
+<p align = "justify" > Simplemente se copió la parte del archivo correspondiente al cliente 1 y se la pegó reemplazando las apariciones del id por 2. </p>
+
+### Ejercicio 1.1
+
+<p align = "justify" > Se realizó un script de bash para poder generar la cantidad de clientes deseada pasada como parámetro. Este script genera un nuevo docker-compose-dev.yaml. y para correrlo se debe ejecutar ./make-docker-compose.sh < cantidad de clientes >  </p>
+
+### Ejercicio 2
+<p align = "justify" > Para no tener que rebuildear las imágenes ante un cambio en los archivos de configuración, se modificó el docker-compose para que dentro de los contenedores se pudiera acceder a la configuración a través de volúmenes. También se eliminó del Dockerfile del cliente la línea en la que se copiaba el archivo config.yaml, ya que a partir de este ejercicio se puede acceder a él por el volumen. </p>
+
+### Ejercicio 3
+<p align = "justify" > Para corroborar el correcto funcionamiento del EchoServer se creo el script test-netcat.sh, el cual genera un mensaje aleatorio de seis caracteres usando el comando mktemp, lo envía al servidor y compara con la respuesta obtenida, informado el resultado por consola. Como no estaba permitido instalar netcat en la máquina host, se corre el script dentro de un contenedor de docker dentro de la misma red definida en el docker-compose. Para correr esto se debe ejecutar primero make docker-compose-up, buildear la imagen del Dockerfile agregado en este ejercicio y luego ejecutar docker run --network tp0_testing_net < id_imagen >  </p>
+
+### Ejercicio 4
+<p align = "justify" > Para agregar el manejo de señales en el cliente se creó el canal sigchnl para que escuchase las interrupciones de tipo SIGINT y SIGTERM. Al finalizar cada iteración del loop en StartClientLoop() se agregó un select para poder distinguir si se debía pasar a la siguiente iteración por haberse cumplido el tiempo LoopPeriod definido en la configuración o si se debía salir del bucle por la llegada de una señal. </p>
+
+<p align = "justify" > En el servidor se definió la función __graceful_shutdown(), la cual cierra el socket en el que se aceptan nuevas conexiones y setea una una variable flag para saber que debe finalizar el while. Al cerrarse ese socket se lanza una excepción de tipo OSError al intentar aceptar una nueva conexión en __accept_new_connection(), por lo que se la atrapa y se devuelve None para marcarle a la función invocante que no debe proseguir con la atención de ese cliente </p>
+
+### Ejercicio 5
+<p align = "justify" > Se leen los datos de la apuesta del archivo de configuración y se envían con el siguiente formato: dos bytes con el largo del payload, un byte con el número de agencia y el payload que consiste en los datos de la apuesta (excepto el número de agencia) separados por comas, utilizando Big Endian y realizando el envío en un loop revisando la cantidad escrita, para evitar el problema deshort-write. </p>
+
+<p align = "justify" > El servidor recibe una cantidad mínima de cuatro bytes (el de la agencia, los dos de largo y uno de payload) y determina cuántos debe recibir en total en base a los bytes 0 y 1. Lee en un loop para evitar el problema de short-read, almacena la apuesta y devuelve un ACK que consiste en un paquete de un byte con el número de agencia, para que el cliente pueda corroborar la recepción de la apuesta. </p>
+
+<p align = "justify" > En retrospectiva, hubiese sido mejor analizar los ejercicios 5, 6 y 7 en conjunto para diseñar desde el principio el protocolo y no tener que ir cambiándolo como se va a describir en los puntos siguientes. También fue excesivo haberle asignado dos bytes al largo máximo de una apuesta, teniendo en cuenta que el largo máximo de una línea en los archivo provistos fue de 59, apenas más de la quinta parte del máximo valor posible representable con un byte.</p>
+
+### Ejercicio 6
+Para este ejercicio se leen una cierta cantidad configurable de apuestas del archivo y se las envía en un paquete con el siguiente formato: Un byte para el id de la agencia, dos para el largo total del payload y luego los bytes de las apuestas con el formato explicado en el punto 5, sin el byte de la agencia. Antes de agregar los bytes de una apuesta al paquete, se verifica que el tamaño de este no supere el máximo permitido. Si lo hace, se envía el paquete y se comienza con esa apuesta el paquete siguiente.
+
+<p align = "justify" >  El error cometido en ese ejercicio fue haber abierto una conexión por cada batch enviado y no enviar todos reutilizándola y finalizando con otro tipo de paquete para notificarle al servidor el fin de las apuestar por parte de esa agencia. </p>
+
+### Ejercicio 7
+Para este ejercicio se cambio nuevamente el protocolo para contemplar que ahora tanto cliente como servidor podían enviar/recibir distintos tipos de paquete. Todos los paquetes comienzan con un byte que identifica su tipo:
+ - 0: Batch de apuestas: un byte para el tipo, uno para el id de la agencia, dos para el largo del payload y luego el payload como fue explicado en el punto anterior.
+ - 1: Notificación al servidor de que la agencia envió todas las apuestas: un byte para el tipo y otro para el id de la agencia.
+ - 2: Pedido de ganadores: un byte para el tipo y otro para el id de la agencia.
+ - 3: ACK del paquete de tipo 0: un byte para el tipo
+ - 4: ACK del paquete de tipo 1: un byte para el tipo
+ - 5: Respuesta al paquete de tipo 2: un byte para el tipo, otro para el resultado de la query (0 si es una respuesta con los ganadores, 1 en caso de que no todas las agencias hayan notificado el fin de sus envíos), dos bytes para el largo del payload y luego el payload, que consiste en los documentos de los ganadores separados por comas.
+
+### Ejercicio 8
+<p align = "justify" > Para agregar el procesamiento de mensajes en paralelo en el servidor genera un nuevo proceso para cada conexión utilizando la biblioteca multiprocessing de Python de la siguiente manera: una vez aceptada una conexión, se crea un nuevo proceso para que ejecute la función __handle_client_connection() pasándole como argumentos el lock del archivo en el cual se almacenan las apuestas y la lista de los clientes que ya han notificado al servidor que terminaron de enviar todas las apuestas. El lock es adquirido antes de cualquier lectura/escritura del archivo y liberado inmediatamente después de esta. Para poder garantizar la exclusión mutua a la lista de clientes, se la define como un objeto de la clase Array de la biblioteca multiprocessing, y se obtiene su lock antes leerla al momento de saber si puede enviarle sus ganadores a una agencia o escritura al momento de marcar que el cliente ha enviado todas las apuestas. </p>
+<p align = "justify" > Para cerrar grácilmente las conexiones se agrega un flag de tipo Value de la biblioteca multiprocessing, el cual comienza con valor cero y se cambia a uno al recibir una de las señales manejadas. Este valor se chequea al finalizar cada iteración en la función __handle_client_connection() para saber si debe interrumpir la recepción de paquetes. </p>
+<p align = "justify" > En este ejercicio se corrige un error existente desde el punto 5 en los anteriores con respecto a la cantidad de conexiones que le tomaba a un cliente enviar toda la información. Previamente, se creaba una nueva conexión para el envío de cada batch y se cerraba luego de recibir su ACK, lo cual es sumamente ineficiente si la cantidad de apuestas es alta. Se modifica para que el cliente envíe todos los batchs en la misma conexión y el servidor permanezca escuchando hasta recibir un mensaje de tipo NOTIFY. También se corrige el manejo en caso de que un paquete exceda el tamaño máximo permitido.</p>
+
 # TP0: Docker + Comunicaciones + Concurrencia
 
 En el presente repositorio se provee un ejemplo de cliente-servidor el cual corre en containers con la ayuda de [docker-compose](https://docs.docker.com/compose/). El mismo es un ejemplo práctico brindado por la cátedra para que los alumnos tengan un esqueleto básico de cómo armar un proyecto de cero en donde todas las dependencias del mismo se encuentren encapsuladas en containers. El cliente (Golang) y el servidor (Python) fueron desarrollados en diferentes lenguajes simplemente para mostrar cómo dos lenguajes de programación pueden convivir en el mismo proyecto con la ayuda de containers.
