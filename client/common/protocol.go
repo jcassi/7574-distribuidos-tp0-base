@@ -32,8 +32,12 @@ func SendBets(bets []Bet, conn net.Conn, clientId string, betsByBatch uint) erro
 		if err != nil {
 			return err
 		}
+		err = ReceiveAckBets(conn, clientId)
+		if err != nil {
+			return err
+		}
 	}
-	return ReceiveAckBets(conn, clientId)
+	return nil
 }
 
 // Converts a slice of bets to the bytes according to the protocol
@@ -47,6 +51,8 @@ func BatchToBytes(agency string, bets []Bet, betsByBatch uint) (int, []byte) {
 		if len(batchBytes)+len(betBytes) < MAX_PACKET_SIZE {
 			batchBytes = append(batchBytes, betBytes...)
 			n++
+		} else {
+			break
 		}
 	}
 
