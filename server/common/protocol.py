@@ -1,33 +1,39 @@
 import logging
+import socket
 from common.utils import Bet
 
-def ReceiveBet(client_sock):
-    bytes_read = []
-    read = 0
-    size = 2
-    while read < size:
-        chunk = client_sock.recv(1024)
-        bytes_read += list(chunk)
-        data_length = len(chunk)
-        if read == 0 and data_length >= 2:
-            size = bytes_read[0] << 8 | bytes_read[1]
-            read += data_length
+PAYLOAD_LEN = 2
+CLIENT_ID_LEN = 1
+MAX_BUFFER_SIZE = 1024
 
-    if (size < 4): #Can't be less than 2 bytes of length, 1 of client_id and at least 1 of payload
-        logging.info(f'action: apuesta_almacenada | result: fail | ip: {addr[0]} | msg: {msg}')
-        return None
+def ReceiveBet(client_sock: socket):
+    bytes_read = ReadFromSocket(client_sock, CLIENT_ID_LEN + PAYLOAD_LEN)
+    size = bytes_read[0] << 8 | bytes_read[1]
     client_id = int(bytes_read[2])
-    msg = bytes(bytes_read[3:]).decode("utf-8")
+
+    bytes_read = ReadFromSocket(client_sock, size)
+    msg = bytes(bytes_read).decode("utf-8")
     addr = client_sock.getpeername()
-    logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
+    
     fields = msg.split(',')
+    if len(fields) < 5:
+        logging.info(f'action: receive_message | result: fail | ip: {addr[0]} | msg: {msg}')
+        return None
+    else:
+        logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
+        return Bet(client_id, fields[0], fields[1], fields[2], fields[3], fields[4])
 
-    return Bet(client_id, fields[0], fields[1], fields[2], fields[3], fields[4])
-
-def RespondBet(bet, client_sock):
-    response_payload = "{}".format(bet.number).encode('utf-8')
-    response_len = len(response_payload).to_bytes(1, byteorder='big')
-    response = response_len + response_payload
+def RespondBet(bet: Bet, client_sock: socket):
+    response = bet.agency.to_bytes(1, byteorder='big')
     n = 0
     while n < len(response):
         n += client_sock.send(response[n:])
+
+def ReadFromSocket(client_sock: socket, size: int):
+    bytes_read = []
+    read = 0
+    while read < size:
+        chunk = client_sock.recv(min(MAX_BUFFER_SIZE, size - read))
+        bytes_read += list(chunk)
+        read += len(chunk)
+    return bytes_read
