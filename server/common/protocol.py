@@ -4,54 +4,21 @@ from common.utils import Bet
 
 PAYLOAD_LEN = 2
 CLIENT_ID_LEN = 1
-
-def ReceiveBet(client_sock):
-    bytes_read = []
-    read = 0
-    size = 2
-    while read < size:
-        chunk = client_sock.recv(1024)
-        bytes_read += list(chunk)
-        data_length = len(chunk)
-        if read == 0 and data_length >= 2:
-            size = bytes_read[0] << 8 | bytes_read[1]
-            read += data_length
-
-    addr = client_sock.getpeername()
-    if (size < PAYLOAD_LEN + CLIENT_ID_LEN + 1): #Can't be less than 2 bytes of length, 1 of client_id and at least 1 of payload
-        logging.info(f'action: apuesta_almacenada | result: fail | ip: {addr[0]} | msg: {msg}') #TODO ver mensaje de error
-        return None
-    client_id = int(bytes_read[2])
-    msg = bytes(bytes_read[3:]).decode("utf-8")
-    
-    logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-    fields = msg.split(',')
-
-    return Bet(client_id, fields[0], fields[1], fields[2], fields[3], fields[4])
-
-def RespondBet(bet, client_sock):
-    response_payload = "{}".format(bet.number).encode('utf-8')
-    response_len = len(response_payload).to_bytes(1, byteorder='big')
-    response = response_len + response_payload
-    n = 0
-    while n < len(response):
-        n += client_sock.send(response[n:])
+MAX_BUFFER_SIZE = 1024
 
 def receive_bets(client_sock):
     """
     Read batch bets from socket, deserialize them and return the bets
     """
-    bytes_read = __read_batch_bytes(client_sock)
-    if bytes_read is None:
-        return None
-    size = len(bytes_read) - PAYLOAD_LEN - CLIENT_ID_LEN
-
-    agency = str(int(bytes_read[0]))
+    bytes_read = __read_from_socket(client_sock, PAYLOAD_LEN + CLIENT_ID_LEN)
+    agency = int(bytes_read[0])
+    size = bytes_read[1] << 8 | bytes_read[2]
     addr = client_sock.getpeername()
 
+    bytes_read = __read_from_socket(client_sock, size)
     bets = []
-    position = PAYLOAD_LEN + CLIENT_ID_LEN
-    while position < size + PAYLOAD_LEN + CLIENT_ID_LEN - 1:
+    position = 0
+    while position < size - 1:
         bet = __deserialize_bet(agency, bytes_read[position:])
         if bet is None:
             logging.error(f'action: deserialize_bet | result: fail | ip: {addr[0]} | agency: {agency}')
@@ -61,33 +28,6 @@ def receive_bets(client_sock):
             bets.append(bet)
             position += n
     return bets
-
-def __read_batch_bytes(client_sock):
-    """
-    Read bytes from a batch of bets and return them raw
-    """
-    bytes_read = []
-    read = 0
-    size = 0
-    logging.info(f'action: receive_batch | result: in_progress | ip: {client_sock.getpeername()[0]}')
-    try:
-        while read < size + CLIENT_ID_LEN + PAYLOAD_LEN :
-            client_sock.settimeout(0.5)
-            try:
-                chunk = client_sock.recv(1024)
-            except socket.timeout:
-                logging.error(f'action: receive_batch | result: fail | error: timed out | ip: {client_sock.getpeername()[0]}')
-                return None
-            bytes_read += list(chunk)
-            data_length = len(chunk)
-            if read == 0 and data_length >= CLIENT_ID_LEN + PAYLOAD_LEN:
-                size = bytes_read[1] << 8 | bytes_read[2]
-            read += data_length
-    except OSError as e:
-        logging.error(f'action: receive_batch | result: fail | ip: {client_sock.getpeername()[0]} | error: {e}')
-        raise e
-    logging.info(f'action: receive_batch | result: success | ip: {client_sock.getpeername()[0]}')
-    return bytes_read
 
 def __deserialize_bet(agency, betsBytes):
     """
@@ -121,3 +61,13 @@ def respond_bets(client_sock, agency):
         logging.error(f'action: sending_batch_ack | result: fail | ip: {client_sock.getpeername()[0]} | error: {e}')
         raise e
     logging.info(f'action: sending_batch_ack | result: success | ip: {client_sock.getpeername()[0]}')
+
+
+def __read_from_socket(client_sock: socket, size: int):
+    bytes_read = []
+    read = 0
+    while read < size:
+        chunk = client_sock.recv(min(MAX_BUFFER_SIZE, size - read))
+        bytes_read += list(chunk)
+        read += len(chunk)
+    return bytes_read

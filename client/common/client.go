@@ -150,6 +150,8 @@ func (c *Client) SendBets(filename string, betsByBatch uint) {
 		isEOF, bets, err = c.ReadBatchFromFile(reader, betsByBatch)
 		if err != nil {
 			log.Errorf("action: leer_batch_archivo | result: fail")
+			file.Close()
+			return
 		}
 		log.Info("action: leer_batch_archivo | result: success")
 
@@ -158,7 +160,9 @@ func (c *Client) SendBets(filename string, betsByBatch uint) {
 		err := SendBets(bets, c.conn, c.config.ID, betsByBatch)
 		if err != nil {
 			log.Error("action: enviar_batch | result: fail")
+			file.Close()
 			c.conn.Close()
+			return
 		}
 		log.Info("action: enviar_batch | result: success")
 		bets = nil
@@ -167,6 +171,7 @@ func (c *Client) SendBets(filename string, betsByBatch uint) {
 		err = ReceiveAckBets(c.conn, c.config.ID)
 		if err != nil {
 			log.Error("action: recibir_ack_batch | result: fail")
+			file.Close()
 			c.conn.Close()
 			return
 		}
@@ -174,6 +179,7 @@ func (c *Client) SendBets(filename string, betsByBatch uint) {
 
 		c.conn.Close()
 	}
+	file.Close()
 }
 
 // Read the amount of lines specified in the environment, creates a bet for each line and returns them.
