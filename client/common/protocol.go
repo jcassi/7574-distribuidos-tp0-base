@@ -6,6 +6,8 @@ import (
 	"strconv"
 )
 
+const MAX_BUFFER_SIZE = 1024
+
 // Sends the bet in a serialized format over the connection received as paramater
 func SendBet(bet Bet, conn net.Conn) error {
 	betBytes := SerializeBet(bet)
@@ -22,24 +24,17 @@ func SendBet(bet Bet, conn net.Conn) error {
 }
 
 // Receives confirmation that the server received the bet
-func ReceiveAck(conn net.Conn) error {
-	buffer := make([]byte, 257)
-	read := 0
-	size := 1
-	readResponseSize := true
-	for read < size {
-		n, err := conn.Read(buffer)
-		if err != nil {
-			return err
-		}
-		if n > 0 && readResponseSize {
-			size = int(buffer[0])
-			readResponseSize = false
-		}
-		read += n
+func ReceiveAck(conn net.Conn, agency string) error {
+	bytes, err := ReadFromSocket(conn, 1)
+	if err != nil {
+		return err
 	}
-
-	return nil
+	agencyID, _ := strconv.Atoi(agency)
+	if int(bytes[0]) == agencyID {
+		return nil
+	} else {
+		return fmt.Errorf("ack wrong agency id")
+	}
 }
 
 // Serializes a bet. Check docks to see the serialization format
@@ -60,4 +55,28 @@ func uint16ToBytes(n uint16) []byte {
 func BetToBytes(bet Bet) []byte {
 	str := fmt.Sprintf("%s,%s,%s,%s,%s", bet.firstName, bet.lastName, bet.document, bet.birthDate, bet.number)
 	return []byte(str)
+}
+
+func ReadFromSocket(conn net.Conn, size int) ([]byte, error) {
+	var bytes []byte
+	buffer := make([]byte, MAX_BUFFER_SIZE)
+	read := 0
+
+	for read < size {
+		n, err := conn.Read(buffer[:min(MAX_BUFFER_SIZE, size-read)])
+		if err != nil {
+			return nil, err
+		}
+		read += n
+		bytes = append(bytes, buffer...)
+	}
+	return bytes, nil
+}
+
+func min(x int, y int) int {
+	if x < y {
+		return x
+	} else {
+		return y
+	}
 }

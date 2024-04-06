@@ -122,9 +122,9 @@ func (c *Client) SendBet(bet Bet) {
 
 	log.Infof("action: apuesta_enviada | result: in_progress | dni: %s | numero: %s", bet.document, bet.number)
 
-	err = ReceiveAck(c.conn)
+	err = ReceiveAck(c.conn, bet.agency)
 	if err != nil {
-		log.Errorf("action: apuesta_enviada | result: fail | dni: %s | numero: %s", bet.document, bet.number)
+		log.Errorf("action: apuesta_enviada | result: fail | dni: %s | numero: %s | error: %s", bet.document, bet.number, err)
 		c.conn.Close()
 		return
 	}
