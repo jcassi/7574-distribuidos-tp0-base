@@ -21,51 +21,17 @@ PACKET_TYPE_QUERY_RESPONSE = 5
 PACKET_QUERY_RESPONSE_SUCCESS = 0
 PACKET_QUERY_RESPONSE_FAILURE = 1
 
-#TODO refactor this
-def receive_packet(client_sock):
-    bytes_read = []
-    read = 0
-    payload_size = 0
-    packet_type = 0
-    know_size = False
-    while read < payload_size + PACKET_TYPE_LEN + CLIENT_ID_LEN:
-        try:
-            chunk = client_sock.recv(1024)
-        except socket.EOF as e:
-            logging.error(f'action: receive_packet | result: fail | error {e}')
-            return None
-        bytes_read += list(chunk)
-        read += len(chunk)
+MAX_BUFFER_SIZE = 1024
 
-        if not know_size:
-            if read >= PACKET_TYPE_LEN + CLIENT_ID_LEN:
-                if bytes_read[0] == 0:
-                    packet_type = 0
-                elif bytes_read[0] == 1:
-                    packet_type = 1
-                elif bytes_read[0] == 2:
-                    packet_type = 2
-                else:
-                    return None
-            else:
-                continue
-        
-        if packet_type == 0:
-            if not know_size:
-                if read >= PACKET_TYPE_LEN + CLIENT_ID_LEN + PAYLOAD_LEN:
-                    payload_size = bytes_read[2] << 8 | bytes_read[3]
-                    know_size = True
-                else:
-                    continue
-            if know_size:
-                if read <= PACKET_TYPE_LEN + CLIENT_ID_LEN + PAYLOAD_LEN + payload_size:
-                    continue
-        elif packet_type == 1 or packet_type == 2:
-            payload_size = 0
-            know_size = True
+def receive_packet(client_sock: socket):
+    bytes_read = __read_from_socket(client_sock, PACKET_TYPE_LEN + CLIENT_ID_LEN + PAYLOAD_LEN)
+    packet_type = bytes_read[0]
+    agency = int(bytes_read[1])
+    size = bytes_read[2] << 8 | bytes_read[3]
 
     if packet_type == PACKET_TYPE_BATCH:
-        return (PACKET_TYPE_BATCH, __deserialize_batch(bytes_read))
+        bytes_read = __read_from_socket(client_sock, size)
+        return (PACKET_TYPE_BATCH, __deserialize_batch(bytes_read, agency))
     elif packet_type == PACKET_TYPE_NOTIFY:
         return (PACKET_TYPE_NOTIFY, __deserialize_notify(bytes_read))
     elif packet_type == PACKET_TYPE_QUERY:
@@ -74,18 +40,13 @@ def receive_packet(client_sock):
         return None
         
 
-def __deserialize_batch(bytes_read):
-    """
-    TODO
-    """
-    payload_size = len(bytes_read) - (PACKET_TYPE_LEN + CLIENT_ID_LEN + PAYLOAD_LEN)
-    agency = str(int(bytes_read[1]))
+def __deserialize_batch(bytes_read, agency: int):
     bets = []
-    position = PACKET_TYPE_LEN + CLIENT_ID_LEN + PAYLOAD_LEN
-    while position < payload_size + PACKET_TYPE_LEN + CLIENT_ID_LEN + PAYLOAD_LEN - 1:
+    position = 0
+    while position < len(bytes_read) - 1:
         bet = __deserialize_bet(agency, bytes_read[position:])           
         if bet is None:
-            logging.error(f'action: deserialize_bet | result: fail | agency: {agency}') # TODO addr
+            logging.error(f'action: deserialize_bet | result: fail | agency: {agency}')
             return None
         else:
             (n, bet) = bet
@@ -168,3 +129,12 @@ def __send_bytes(bytes_list: bytes, client_sock: socket):
     n = 0
     while n < len(bytes_list):
         n += client_sock.send(bytes_list[n:])
+
+def __read_from_socket(client_sock: socket, size: int):
+    bytes_read = []
+    read = 0
+    while read < size:
+        chunk = client_sock.recv(min(MAX_BUFFER_SIZE, size - read))
+        bytes_read += list(chunk)
+        read += len(chunk)
+    return bytes_read
