@@ -104,9 +104,8 @@ class Server:
         logging.info("action: signal_handling | result: success")
 
     def __process_bets(self, bets: list[Bet], client_sock: socket, lock):
-        lock.acquire()
-        store_bets(bets)
-        lock.release()
+        with lock:
+            store_bets(bets)
         logging.info(f'action: apuesta_almacenada | result: success')
         respond_bets(client_sock)
 
@@ -126,9 +125,8 @@ class Server:
                     can_lottery = False
         if can_lottery:
             logging.info("action: sorteo | result: success")
-            lock_file.acquire()
-            bets = load_bets()
-            lock_file.release()
+            with lock_file:
+                bets = load_bets()
             for bet in bets:
                 if bet.agency == query.agency and has_won(bet):
                     winners.append(bet.document)
