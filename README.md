@@ -1,5 +1,31 @@
 ## TP0
 
+### Reentrega
+
+### Ejercicio 5
+<p align = "justify" >Para evitar el problema de short-read en el servidor, primero se leen los primeros tres bytes, los cuales consisten en un byte para el id del cliente y dos con la longitud del resto del mensaje. Una vez leídos estos, se obtiene la longitud del resto del mensaje y se leen la cantidad de bytes indicada.</p>
+
+<p align = "justify" >Se implementó la función __read_from_socket() para leer una cantidad de bytes exacta del socket. Se le pasa como parámetro la cantidad total de bytes a leer y la función realiza un loop llamando a la función recv() hasta que la cantidad total de bytes leídos sea la indicada. En cada iteración se trata de leer el mínimo entre un valor máximo permitido por lectura (1024) y la cantidad de bytes que quedan por leer.</p>
+
+<p align = "justify" >Se implementó una función similar de lectura del socket en el cliente y se la utiliza en la recepción del ACK luego de enviar una apuesta.</p>
+
+### Ejercicio 6
+<p align = "justify" >Se realizaron correcciones similares a las del ejercicio 5 para la lectura de cada batch de apuestas. Primero se leen tres bytes (uno de client_id y dos de la longitud del resto del mensaje), se calcula la cantidad restante por leer y luego se los lee. En ambas lecturas se utiliza la función __read_from_socket() explicada en el ejercicio 5.</p>
+
+<p align = "justify" >Se cambió la cantidad de clientes a 5.</p>
+
+<p align = "justify" >Se corrige el no cierre del archivo en el cliente.</p>
+
+### Ejercicio 7
+<p align = "justify" >Se cambió el protocolo para que los mensajes de tipo 0, 1 y 2 tengan todos la misma longitud mínima (4 bytes), para que primero se lea esa cantidad, se determine en base a eso la longitud del resto del mensaje y luego se lean esos bytes. Para los mensajes de tipo 1 y 2, este cambio en el protocolo implica agregar dos bytes con valor 0 en las posiciones 2 y 3, estableciendo que no se deben leer más bytes después de estos. Este cambio permitió simplificar mucho la recepción de mensajes en el servidor, ya que primero se debe leer la misma cantidad independientemente del tipo de mensaje que sea.</p>
+
+<p align = "justify" >Del lado del cliente se corrigieron los problemas de short-read utilizando nuevamente la función ReadFromSocket() para leer la cantidad mínima de bytes (1 para el ACK del batch y de la notificación de fin de envío de apuestas,  4 para la respuesta al pedido de ganadores). Para los dos primeros tipos de paquetes no hace falta leer más, mientras que para el último, si el segundo bytes indica que ya se realizó el sorteo, se lee la cantidad establecida en los bytes 2 y 3.</p>
+
+### Ejercicio 8
+<p align = "justify" >Para este ejercicio, además de incorporar los cambios del punto 7, se cambió la forma de realizar el join de los procesos creados. Antes sólo se hacía recién al manejar la señal de SIGTERM y cerrar de manera graceful, lo cual implicaba que no se liberaban los recursos de procesos que podían haber terminado mucho antes. Se cambia para que ante la llegada de una nueva conexión se recorra un diccionario en el que se encuentran los procesos con su pid como clave, se revise si están con vida con la función is_alive() y se elimine aquellos que no cumplan con esto.</p>
+
+## Primera entrega
+
 ### Ejercicio 1
 <p align = "justify" > Simplemente se copió la parte del archivo correspondiente al cliente 1 y se la pegó reemplazando las apariciones del id por 2. </p>
 
