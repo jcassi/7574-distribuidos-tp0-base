@@ -14,7 +14,7 @@ class Server:
         self._server_socket.listen(listen_backlog)
         self._stop = Value('i', 0)
         self._finished_clients = Array('i', [0] * clients_count )
-        self._client_handlers = []
+        self._client_handlers = {}
         self._file_lock = Lock()
 
         signal.signal(signal.SIGINT, self.__graceful_shutdown)
@@ -31,17 +31,21 @@ class Server:
 
         stop = False
         while not stop:
+            self.__check_processes()
+
             client_sock = self.__accept_new_connection()
             if client_sock is None:
                 break
             client_handler = Process(target=self.__handle_client_connection, args=(client_sock,self._file_lock, self._finished_clients))
-            self._client_handlers.append(client_handler)
             client_handler.start()
+            self._client_handlers[client_handler.pid] = client_handler
             with self._stop.get_lock():
                 stop = self._stop == 1
 
-        for handler in self._client_handlers:
-            handler.join()
+        pids = list(self._client_handlers.keys())
+        for pid in pids:
+            handle = self._client_handlers.pop(pid)
+            handle.join()
 
     def __handle_client_connection(self, client_sock, lock_file, finished_clients):
         """
@@ -63,12 +67,12 @@ class Server:
                         self.__process_notify(msg, client_sock, finished_clients)
                         close_connection = True
                     elif packet_type == PACKET_TYPE_QUERY:
-                        self.__process_query(msg, client_sock, lock_file, finished_clients)
-                        close_connection = True
+                        close_connection = self.__process_query(msg, client_sock, lock_file, finished_clients)
                 else:
                     close_connection = True
-                with self._stop.get_lock():
-                    close_connection = self._stop == 1
+                if not close_connection:
+                    with self._stop.get_lock():
+                        close_connection = self._stop == 1
             
             client_sock.shutdown(socket.SHUT_RDWR)
         except OSError as e:
@@ -115,7 +119,7 @@ class Server:
         respond_notify(client_sock)
 
         
-    def __process_query(self, query: Query, client_sock, lock_file, finished_clients):
+    def __process_query(self, query: Query, client_sock, lock_file, finished_clients) -> bool:
         logging.info("action: pedido_sorteo | result: in_progress")
         winners = []
         can_lottery = True
@@ -131,6 +135,20 @@ class Server:
                 if bet.agency == query.agency and has_won(bet):
                     winners.append(bet.document)
             respond_query(True, winners, client_sock)
+            return True
         else:
             logging.info("action: sorteo | result: rejected")
             respond_query(False, winners, client_sock)
+            return False
+
+    def __check_processes(self):
+        """
+        Check spawned processes, join and remove from self._client_handlers the ones that have ended
+        """
+        dead_processes = []
+        for pid in self._client_handlers.keys():
+            if not self._client_handlers[pid].is_alive():
+                dead_processes.append(pid)
+        for pid in dead_processes:
+            handle = self._client_handlers.pop(pid)
+            handle.join()

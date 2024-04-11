@@ -182,7 +182,6 @@ loop:
 		default:
 		}
 	}
-	c.conn.Close()
 	file.Close()
 	return nil
 }
@@ -211,7 +210,6 @@ func (c *Client) ReadBatchFromFile(reader *bufio.Reader, betsByBatch uint) (bool
 
 func (c *Client) NotifyServer() error {
 	log.Info("action: notificar_servidor | result: in_progress")
-	c.createClientSocket()
 	err := NotifyServer(c.config.ID, c.conn)
 	if err != nil {
 		log.Errorf("action: notificar_servidor | result: fail | error %v", err)
@@ -227,8 +225,8 @@ func (c *Client) NotifyServer() error {
 func (c *Client) QueryWinners(sigchnl chan os.Signal) error {
 	log.Info("action: consultar_ganadores | result: in_progress")
 
+	c.createClientSocket()
 	for {
-		c.createClientSocket()
 		winners, err := QueryWinners(c.config.ID, c.conn)
 		if err != nil {
 			if errors.Is(err, &LotteryRejection{}) {
